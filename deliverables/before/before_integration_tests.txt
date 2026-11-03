@@ -1,0 +1,257 @@
+Running one project: integration
+  console.error
+    {"level":"ERROR","timestamp":"2026-11-03T06:56:46.990Z","logger":"kafkajs","message":"[Runner] Error when calling eachMessage","topic":"it-orders-1793688995361-52dt7g","partition":0,"offset":"4","stack":"Error: gave up on it-orders-1793688995361-52dt7g/0/4 after 3 attempts\n    at OrderEventsConsumer.handle (/Users/user/tasks/cdc-pipeline/apps/cdc-consumer/src/order-events.consumer.ts:136:17)\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at processTimers (node:internal/timers:615:9)\n    at Runner.processEachMessage (/Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/runner.js:231:9)\n    at onBatch (/Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/runner.js:447:9)\n    at Runner.handleBatch (/Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/runner.js:461:5)\n    at /Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/worker.js:29:9","error":{}}
+
+      at node_modules/kafkajs/src/loggers/console.js:15:22
+      at Object.error (node_modules/kafkajs/src/loggers/index.js:16:3)
+      at Runner.processEachMessage (node_modules/kafkajs/src/consumer/runner.js:240:23)
+      at onBatch (node_modules/kafkajs/src/consumer/runner.js:447:9)
+      at Runner.handleBatch (node_modules/kafkajs/src/consumer/runner.js:461:5)
+      at node_modules/kafkajs/src/consumer/worker.js:29:9
+
+  console.error
+    {"level":"ERROR","timestamp":"2026-11-03T06:56:47.016Z","logger":"kafkajs","message":"[Consumer] Crash: KafkaJSNumberOfRetriesExceeded: gave up on it-orders-1793688995361-52dt7g/0/4 after 3 attempts","groupId":"it-projection-1793688995361-52dt7g","retryCount":0,"stack":"KafkaJSNonRetriableError\n  Caused by: Error: gave up on it-orders-1793688995361-52dt7g/0/4 after 3 attempts\n    at OrderEventsConsumer.handle (/Users/user/tasks/cdc-pipeline/apps/cdc-consumer/src/order-events.consumer.ts:136:17)\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at processTimers (node:internal/timers:615:9)\n    at Runner.processEachMessage (/Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/runner.js:231:9)\n    at onBatch (/Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/runner.js:447:9)\n    at Runner.handleBatch (/Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/runner.js:461:5)\n    at /Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/worker.js:29:9"}
+
+      at node_modules/kafkajs/src/loggers/console.js:15:22
+      at Object.error (node_modules/kafkajs/src/loggers/index.js:16:3)
+      at Runner.onCrash (node_modules/kafkajs/src/consumer/index.js:247:14)
+      at node_modules/kafkajs/src/consumer/runner.js:167:14
+
+FAIL integration test/integration/consumer-recovery.kafka.spec.ts (39.159 s)
+  OrderEventsConsumer recovery with a real Kafka broker
+    ✓ resumes from the committed offset after a clean stop, without re-reading committed events (10427 ms)
+    ✓ does not commit an event whose processing failed; it is redelivered after restart (5550 ms)
+    ✕ is idempotent when the write succeeded but the outcome was not acknowledged (crash between write and commit) (5159 ms)
+    ✕ real broker replay: rewinding the group to earliest re-reads every event without regressing state (10226 ms)
+    ✓ routes an unparseable record to the DLQ and moves on (permanent error) (5076 ms)
+
+  ● OrderEventsConsumer recovery with a real Kafka broker › is idempotent when the write succeeded but the outcome was not acknowledged (crash between write and commit)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+        "retryable_error",
+    -   "duplicate",
+    +   "deleted",
+      ]
+
+      149 |     await e.stop();
+      150 |
+    > 151 |     expect(logger.outcomes(id).map((o) => o.outcome)).toEqual(['retryable_error', 'duplicate']);
+          |                                                       ^
+      152 |     expect((await getDoc(es, index, id))?.source).toMatchObject({ version: 6, is_deleted: true });
+      153 |   });
+      154 |
+
+      at Object.<anonymous> (test/integration/consumer-recovery.kafka.spec.ts:151:55)
+
+  ● OrderEventsConsumer recovery with a real Kafka broker › real broker replay: rewinding the group to earliest re-reads every event without regressing state
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 6
+    + Received  + 6
+
+      Array [
+    -   "ignored_stale",
+    -   "ignored_stale",
+    -   "ignored_stale",
+    -   "ignored_stale",
+    -   "ignored_stale",
+    -   "duplicate",
+    +   "applied",
+    +   "applied",
+    +   "applied",
+    +   "applied",
+    +   "applied",
+    +   "deleted",
+      ]
+
+      165 |
+      166 |     expect(seen.map((s) => s.offset)).toEqual(['0', '1', '2', '3', '4', '5']); // offset 6 is the Kafka tombstone
+    > 167 |     expect(logger.outcomes(id).map((o) => o.outcome)).toEqual([
+          |                                                       ^
+      168 |       'ignored_stale',
+      169 |       'ignored_stale',
+      170 |       'ignored_stale',
+
+      at Object.<anonymous> (test/integration/consumer-recovery.kafka.spec.ts:167:55)
+
+FAIL integration test/integration/order-projection.es.spec.ts
+  OrderProjectionService against real Elasticsearch
+    ✓ TC-01 normal update: a newer version replaces the document (79 ms)
+    ✓ TC-02 rapid updates: final document matches the highest version (63 ms)
+    ✕ TC-02 concurrent writes of interleaved versions converge to the highest version (atomic compare-and-write) (34 ms)
+    ✕ TC-03 duplicate event: re-applying the same version is a no-op reported as duplicate (66 ms)
+    ✕ TC-05 out-of-order event: a lower version never overwrites a higher one (21 ms)
+    ✕ regression (seeded defect): v2 delivered after v4 leaves the document at v4 / COMPLETED (54 ms)
+    ✓ TC-06 deletion: writes a versioned tombstone excluded from search (100 ms)
+    ✕ TC-06 stale resurrection: an older update after the delete cannot recreate the order (35 ms)
+    ✕ TC-06 a duplicate delete is reported as duplicate and keeps the tombstone (32 ms)
+    ✕ a delete that arrives before earlier updates still wins (19 ms)
+
+  ● OrderProjectionService against real Elasticsearch › TC-02 concurrent writes of interleaved versions converge to the highest version (atomic compare-and-write)
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "status": "CANCELLED",
+    -   "version": 5,
+    +   "status": "COMPLETED",
+    +   "version": 4,
+      }
+
+      46 |     // Fire all writes at once, newest first, so lower versions race against an already-higher doc.
+      47 |     await Promise.all([...events].reverse().map((e) => projection.apply(e)));
+    > 48 |     expect((await getDoc(client, index, id))?.source).toMatchObject({ status: 'CANCELLED', version: 5 });
+         |                                                       ^
+      49 |   });
+      50 |
+      51 |   it('TC-03 duplicate event: re-applying the same version is a no-op reported as duplicate', async () => {
+
+      at Object.<anonymous> (test/integration/order-projection.es.spec.ts:48:55)
+
+  ● OrderProjectionService against real Elasticsearch › TC-03 duplicate event: re-applying the same version is a no-op reported as duplicate
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 1
+
+      Object {
+    -   "indexedVersion": 2,
+    -   "outcome": "duplicate",
+    +   "outcome": "applied",
+      }
+
+      54 |     const before = await getDoc(client, index, id);
+      55 |
+    > 56 |     expect(await projection.apply(upsertEvent(id, 2, 'CONFIRMED'))).toEqual({ outcome: 'duplicate', indexedVersion: 2 });
+         |                                                                     ^
+      57 |     const after = await getDoc(client, index, id);
+      58 |     expect(after?.source).toMatchObject({ status: 'CONFIRMED', version: 2 });
+      59 |     expect(after?.seqNo).toBe(before?.seqNo); // document not rewritten
+
+      at Object.<anonymous> (test/integration/order-projection.es.spec.ts:56:69)
+
+  ● OrderProjectionService against real Elasticsearch › TC-05 out-of-order event: a lower version never overwrites a higher one
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 1
+
+      Object {
+    -   "indexedVersion": 3,
+    -   "outcome": "ignored_stale",
+    +   "outcome": "applied",
+      }
+
+      62 |   it('TC-05 out-of-order event: a lower version never overwrites a higher one', async () => {
+      63 |     await projection.apply(upsertEvent(id, 3, 'PROCESSING'));
+    > 64 |     expect(await projection.apply(upsertEvent(id, 2, 'CONFIRMED'))).toEqual({ outcome: 'ignored_stale', indexedVersion: 3 });
+         |                                                                     ^
+      65 |     expect(await projection.apply(upsertEvent(id, 1, 'PENDING'))).toEqual({ outcome: 'ignored_stale', indexedVersion: 3 });
+      66 |     expect((await getDoc(client, index, id))?.source).toMatchObject({ status: 'PROCESSING', version: 3 });
+      67 |   });
+
+      at Object.<anonymous> (test/integration/order-projection.es.spec.ts:64:69)
+
+  ● OrderProjectionService against real Elasticsearch › regression (seeded defect): v2 delivered after v4 leaves the document at v4 / COMPLETED
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "status": "COMPLETED",
+    -   "version": 4,
+    +   "status": "CONFIRMED",
+    +   "version": 2,
+      }
+
+      73 |     await projection.apply(upsertEvent(id, 4, 'COMPLETED'));
+      74 |     await projection.apply(upsertEvent(id, 2, 'CONFIRMED')); // late / replayed
+    > 75 |     expect((await getDoc(client, index, id))?.source).toMatchObject({ status: 'COMPLETED', version: 4 });
+         |                                                       ^
+      76 |   });
+      77 |
+      78 |   it('TC-06 deletion: writes a versioned tombstone excluded from search', async () => {
+
+      at Object.<anonymous> (test/integration/order-projection.es.spec.ts:75:55)
+
+  ● OrderProjectionService against real Elasticsearch › TC-06 stale resurrection: an older update after the delete cannot recreate the order
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 1
+
+      Object {
+    -   "indexedVersion": 3,
+    -   "outcome": "ignored_stale",
+    +   "outcome": "applied",
+      }
+
+       95 |     await projection.apply(deleteEvent(id, 2, 'CONFIRMED'));
+       96 |
+    >  97 |     expect(await projection.apply(upsertEvent(id, 2, 'CONFIRMED'))).toEqual({ outcome: 'ignored_stale', indexedVersion: 3 });
+          |                                                                     ^
+       98 |     expect(await projection.apply(upsertEvent(id, 1, 'PENDING'))).toEqual({ outcome: 'ignored_stale', indexedVersion: 3 });
+       99 |     expect((await getDoc(client, index, id))?.source).toMatchObject({ is_deleted: true, version: 3 });
+      100 |   });
+
+      at Object.<anonymous> (test/integration/order-projection.es.spec.ts:97:69)
+
+  ● OrderProjectionService against real Elasticsearch › TC-06 a duplicate delete is reported as duplicate and keeps the tombstone
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 1
+
+      Object {
+    -   "indexedVersion": 2,
+    -   "outcome": "duplicate",
+    +   "outcome": "deleted",
+      }
+
+      103 |     await projection.apply(upsertEvent(id, 1, 'PENDING'));
+      104 |     await projection.apply(deleteEvent(id, 1, 'PENDING'));
+    > 105 |     expect(await projection.apply(deleteEvent(id, 1, 'PENDING'))).toEqual({ outcome: 'duplicate', indexedVersion: 2 });
+          |                                                                   ^
+      106 |     expect((await getDoc(client, index, id))?.source).toMatchObject({ is_deleted: true, version: 2 });
+      107 |   });
+      108 |
+
+      at Object.<anonymous> (test/integration/order-projection.es.spec.ts:105:67)
+
+  ● OrderProjectionService against real Elasticsearch › a delete that arrives before earlier updates still wins
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "ignored_stale"
+    Received: "applied"
+
+      109 |   it('a delete that arrives before earlier updates still wins', async () => {
+      110 |     await projection.apply(deleteEvent(id, 3, 'PROCESSING'));
+    > 111 |     expect((await projection.apply(upsertEvent(id, 3, 'PROCESSING'))).outcome).toBe('ignored_stale');
+          |                                                                                ^
+      112 |     expect((await getDoc(client, index, id))?.source).toMatchObject({ is_deleted: true, version: 4 });
+      113 |   });
+      114 | });
+
+      at Object.<anonymous> (test/integration/order-projection.es.spec.ts:111:80)
+
+Test Suites: 2 failed, 2 total
+Tests:       9 failed, 6 passed, 15 total
+Snapshots:   0 total
+Time:        40.882 s, estimated 53 s
+Ran all test suites.

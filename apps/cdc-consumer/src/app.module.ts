@@ -24,9 +24,16 @@ class HealthController {
 
   @Get()
   async check() {
-    const elasticsearch = await this.es.ping().then(() => 'up', () => 'down');
+    const elasticsearch = await this.es.ping().then(
+      () => 'up',
+      () => 'down',
+    );
     const kafkaConsumer = this.consumer.isRunning ? 'running' : 'stopped';
-    const body = { status: elasticsearch === 'up' && kafkaConsumer === 'running' ? 'ok' : 'error', elasticsearch, kafkaConsumer };
+    const body = {
+      status: elasticsearch === 'up' && kafkaConsumer === 'running' ? 'ok' : 'error',
+      elasticsearch,
+      kafkaConsumer,
+    };
     if (body.status !== 'ok') throw new ServiceUnavailableException(body);
     return body;
   }

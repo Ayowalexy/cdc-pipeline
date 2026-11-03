@@ -1,0 +1,7 @@
+dist
+node_modules
+deliverables
+package-lock.json
+*.md
+*.docx
+docs/fix.diff

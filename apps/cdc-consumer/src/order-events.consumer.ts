@@ -56,14 +56,21 @@ export class OrderEventsConsumer {
     await this.producer.connect();
     this.consumer = this.kafka.consumer({
       groupId: this.config.groupId,
-      retry: { retries: this.config.restartOnFailure ? 5 : 0, restartOnFailure: async () => this.config.restartOnFailure },
+      retry: {
+        retries: this.config.restartOnFailure ? 5 : 0,
+        restartOnFailure: async () => this.config.restartOnFailure,
+      },
     });
     this.consumer.on(this.consumer.events.CRASH, (e) => {
       this.running = this.config.restartOnFailure && e.payload.restart;
       this.logger.error({ msg: 'consumer crashed', error: String(e.payload.error), restart: e.payload.restart });
     });
     this.consumer.on(this.consumer.events.GROUP_JOIN, (e) => {
-      this.logger.log({ msg: 'consumer joined group', groupId: e.payload.groupId, assignment: e.payload.memberAssignment });
+      this.logger.log({
+        msg: 'consumer joined group',
+        groupId: e.payload.groupId,
+        assignment: e.payload.memberAssignment,
+      });
     });
     await this.consumer.connect();
     await this.consumer.subscribe({ topic: this.config.topic, fromBeginning: true });
@@ -126,11 +133,22 @@ export class OrderEventsConsumer {
         const errorClass = classifyEsError(err);
         if (errorClass === 'permanent') {
           await this.deadLetter(topic, partition, message.offset, message.key, message.value, String(err));
-          this.logger.error({ ...base, outcome: 'permanent_error', error: String(err), dlqTopic: this.config.dlqTopic });
+          this.logger.error({
+            ...base,
+            outcome: 'permanent_error',
+            error: String(err),
+            dlqTopic: this.config.dlqTopic,
+          });
           await this.commit(topic, partition, message.offset);
           return;
         }
-        this.logger.warn({ ...base, outcome: 'retryable_error', attempt, maxAttempts: this.config.maxAttempts, error: String(err) });
+        this.logger.warn({
+          ...base,
+          outcome: 'retryable_error',
+          attempt,
+          maxAttempts: this.config.maxAttempts,
+          error: String(err),
+        });
         if (attempt >= this.config.maxAttempts) {
           // Not committed: the message will be re-fetched from the last committed offset.
           throw new RetriesExhaustedError(`gave up on ${correlationId} after ${attempt} attempts`);
@@ -162,7 +180,12 @@ export class OrderEventsConsumer {
         {
           key,
           value,
-          headers: { 'x-source-topic': topic, 'x-source-partition': String(partition), 'x-source-offset': offset, 'x-error': reason },
+          headers: {
+            'x-source-topic': topic,
+            'x-source-partition': String(partition),
+            'x-source-offset': offset,
+            'x-error': reason,
+          },
         },
       ],
     });

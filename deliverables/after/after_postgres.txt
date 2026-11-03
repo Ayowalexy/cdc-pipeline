@@ -1,0 +1,6 @@
+# PostgreSQL (source of truth) — captured 2026-11-03T07:39:00Z, post-fix, reproduction order ORD-REPRO-20261103-073741
+            id             |  status   | version | total_amount | currency |          created_at           |          updated_at           
+---------------------------+-----------+---------+--------------+----------+-------------------------------+-------------------------------
+ ORD-REPRO-20261103-073741 | COMPLETED |       4 |       149.90 | EUR      | 2026-11-03 07:37:41.423219+00 | 2026-11-03 07:37:41.645144+00
+(1 row)
+

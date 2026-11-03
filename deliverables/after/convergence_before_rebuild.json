@@ -1,0 +1,28 @@
+{
+  "checkedAt": "2026-11-03T07:31:55.344Z",
+  "postgresRows": 28,
+  "tombstones": 1,
+  "mismatches": [
+    "ORD-1001: Elasticsearch _version 4 != row version 2 (pre-fix document)",
+    "ORD-1002: Elasticsearch _version 2 != row version 1 (pre-fix document)",
+    "ORD-1003: Elasticsearch _version 6 != row version 3 (pre-fix document)",
+    "ORD-1004: Elasticsearch _version 8 != row version 4 (pre-fix document)",
+    "ORD-1005: Elasticsearch _version 4 != row version 2 (pre-fix document)",
+    "ORD-REPRO-20261103-065350: PostgreSQL COMPLETED/v4 vs Elasticsearch CONFIRMED/v2",
+    "ORD-REPRO-20261103-065353: PostgreSQL COMPLETED/v4 vs Elasticsearch CONFIRMED/v2",
+    "ORD-TC01-20261103-065716: Elasticsearch _version 4 != row version 2 (pre-fix document)",
+    "ORD-TC02-20261103-065716: Elasticsearch _version 12 != row version 6 (pre-fix document)",
+    "ORD-TC03-20261103-065716: Elasticsearch _version 8 != row version 2 (pre-fix document)",
+    "ORD-TC04-20261103-065716: Elasticsearch _version 6 != row version 3 (pre-fix document)",
+    "ORD-REPRO-20261103-065337: PostgreSQL CANCELLED/v5 vs Elasticsearch CONFIRMED/v2",
+    "ORD-TC05-20261103-065716: Elasticsearch _version 6 != row version 3 (pre-fix document)",
+    "ORD-TC06-20261103-065716: Elasticsearch _version 4 != row version 2 (pre-fix document)",
+    "ORD-TC01-20261103-070441: Elasticsearch _version 4 != row version 2 (pre-fix document)",
+    "ORD-TC02-20261103-070441: Elasticsearch _version 12 != row version 6 (pre-fix document)",
+    "ORD-TC03-20261103-070441: Elasticsearch _version 8 != row version 2 (pre-fix document)",
+    "ORD-TC04-20261103-070441: Elasticsearch _version 6 != row version 3 (pre-fix document)",
+    "ORD-TC05-20261103-070441: PostgreSQL PROCESSING/v3 vs Elasticsearch CONFIRMED/v2",
+    "ORD-TC06-20261103-070441: live in Elasticsearch but absent from PostgreSQL"
+  ],
+  "converged": false
+}

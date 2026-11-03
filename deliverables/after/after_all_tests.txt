@@ -1,0 +1,76 @@
+  console.error
+    {"level":"ERROR","timestamp":"2026-11-03T07:37:05.547Z","logger":"kafkajs","message":"[Runner] Error when calling eachMessage","topic":"it-orders-1793691408598-2ryqax","partition":0,"offset":"4","stack":"Error: gave up on it-orders-1793691408598-2ryqax/0/4 after 3 attempts\n    at OrderEventsConsumer.handle (/Users/user/tasks/cdc-pipeline/apps/cdc-consumer/src/order-events.consumer.ts:154:17)\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at processTimers (node:internal/timers:615:9)\n    at Runner.processEachMessage (/Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/runner.js:231:9)\n    at onBatch (/Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/runner.js:447:9)\n    at Runner.handleBatch (/Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/runner.js:461:5)\n    at /Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/worker.js:29:9","error":{}}
+
+      at node_modules/kafkajs/src/loggers/console.js:15:22
+      at Object.error (node_modules/kafkajs/src/loggers/index.js:16:3)
+      at Runner.processEachMessage (node_modules/kafkajs/src/consumer/runner.js:240:23)
+      at onBatch (node_modules/kafkajs/src/consumer/runner.js:447:9)
+      at Runner.handleBatch (node_modules/kafkajs/src/consumer/runner.js:461:5)
+      at node_modules/kafkajs/src/consumer/worker.js:29:9
+
+  console.error
+    {"level":"ERROR","timestamp":"2026-11-03T07:37:05.593Z","logger":"kafkajs","message":"[Consumer] Crash: KafkaJSNumberOfRetriesExceeded: gave up on it-orders-1793691408598-2ryqax/0/4 after 3 attempts","groupId":"it-projection-1793691408598-2ryqax","retryCount":0,"stack":"KafkaJSNonRetriableError\n  Caused by: Error: gave up on it-orders-1793691408598-2ryqax/0/4 after 3 attempts\n    at OrderEventsConsumer.handle (/Users/user/tasks/cdc-pipeline/apps/cdc-consumer/src/order-events.consumer.ts:154:17)\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at processTimers (node:internal/timers:615:9)\n    at Runner.processEachMessage (/Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/runner.js:231:9)\n    at onBatch (/Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/runner.js:447:9)\n    at Runner.handleBatch (/Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/runner.js:461:5)\n    at /Users/user/tasks/cdc-pipeline/node_modules/kafkajs/src/consumer/worker.js:29:9"}
+
+      at node_modules/kafkajs/src/loggers/console.js:15:22
+      at Object.error (node_modules/kafkajs/src/loggers/index.js:16:3)
+      at Runner.onCrash (node_modules/kafkajs/src/consumer/index.js:247:14)
+      at node_modules/kafkajs/src/consumer/runner.js:167:14
+
+PASS integration test/integration/consumer-recovery.kafka.spec.ts (48.214 s)
+  OrderEventsConsumer recovery with a real Kafka broker
+    ✓ resumes from the committed offset after a clean stop, without re-reading committed events (13674 ms)
+    ✓ does not commit an event whose processing failed; it is redelivered after restart (5832 ms)
+    ✓ is idempotent when the write succeeded but the outcome was not acknowledged (crash between write and commit) (5385 ms)
+    ✓ real broker replay: rewinding the group to earliest re-reads every event without regressing state (10599 ms)
+    ✓ routes an unparseable record to the DLQ and moves on (permanent error) (5219 ms)
+
+PASS integration test/integration/order-projection.es.spec.ts
+  OrderProjectionService against real Elasticsearch
+    ✓ TC-01 normal update: a newer version replaces the document (147 ms)
+    ✓ TC-02 rapid updates: final document matches the highest version (196 ms)
+    ✓ TC-02 concurrent writes of interleaved versions converge to the highest version (atomic compare-and-write) (70 ms)
+    ✓ TC-03 duplicate event: re-applying the same version is a no-op reported as duplicate (312 ms)
+    ✓ TC-05 out-of-order event: a lower version never overwrites a higher one (74 ms)
+    ✓ regression (seeded defect): v2 delivered after v4 leaves the document at v4 / COMPLETED (110 ms)
+    ✓ TC-06 deletion: writes a versioned tombstone excluded from search (133 ms)
+    ✓ TC-06 stale resurrection: an older update after the delete cannot recreate the order (57 ms)
+    ✓ TC-06 a duplicate delete is reported as duplicate and keeps the tombstone (29 ms)
+    ✓ a delete that arrives before earlier updates still wins (22 ms)
+
+PASS unit test/unit/es-errors.spec.ts
+  classifyEsError
+    ✓ treats HTTP 429 as retryable (4 ms)
+    ✓ treats HTTP 502 as retryable (2 ms)
+    ✓ treats HTTP 503 as retryable (1 ms)
+    ✓ treats HTTP 504 as retryable
+    ✓ treats connection failures and timeouts as retryable (2 ms)
+    ✓ treats HTTP 400 (mapping/parse/request errors) as permanent (1 ms)
+    ✓ treats HTTP 404 (mapping/parse/request errors) as permanent
+    ✓ treats unknown errors as permanent (2 ms)
+
+PASS unit test/unit/debezium-order.adapter.spec.ts
+  normalizeDebeziumOrderMessage
+    ✓ maps an insert (op=c) to CREATE at version 1 (4 ms)
+    ✓ maps a snapshot read (op=r) to CREATE (1 ms)
+    ✓ maps an update (op=u) to UPDATE using the row version from `after` (2 ms)
+    ✓ maps a delete (op=d) to DELETE ordered after the last row version (1 ms)
+    ✓ yields the same eventId for a redelivered copy of the same record (2 ms)
+    ✓ recognises the Kafka tombstone (null value) that follows a delete (38 ms)
+    ✓ rejects invalid JSON as a permanent normalization error (42 ms)
+    ✓ rejects unsupported op (truncate) as a permanent normalization error (5 ms)
+    ✓ rejects delete without before image (REPLICA IDENTITY DEFAULT) as a permanent normalization error (1 ms)
+    ✓ rejects update without after image as a permanent normalization error (5 ms)
+    ✓ rejects unknown status as a permanent normalization error (1 ms)
+    ✓ rejects non-integer version as a permanent normalization error (5 ms)
+
+PASS unit test/unit/version-decision.spec.ts
+  version decision
+    ✓ classifies an equal version as duplicate and a lower one as stale (2 ms)
+    ✓ extracts the stored version from an Elasticsearch version conflict (1 ms)
+    ✓ does not treat other errors as version conflicts (1 ms)
+
+Test Suites: 5 passed, 5 total
+Tests:       38 passed, 38 total
+Snapshots:   0 total
+Time:        53.568 s, estimated 60 s
+Ran all test suites in 2 projects.

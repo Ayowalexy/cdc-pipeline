@@ -1,0 +1,5 @@
+{"acknowledged":true}
+
+GROUP                          TOPIC                          PARTITION  NEW-OFFSET     order-projection               cdc.public.orders              0          0              order-projection               cdc.public.orders              1          0              order-projection               cdc.public.orders              2          0               Container cdc-order-sync-cdc-consumer-1 Starting 
+PostgreSQL rows: 28, tombstones: 2, mismatches: 0
+CONVERGED

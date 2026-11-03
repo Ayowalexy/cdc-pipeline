@@ -1,0 +1,17 @@
+[reproduce] run 20261103-065337: order ORD-REPRO-20261103-065337
+[reproduce] PATCH status=CONFIRMED -> PostgreSQL version 2
+[reproduce] PATCH status=PROCESSING -> PostgreSQL version 3
+[reproduce] PATCH status=COMPLETED -> PostgreSQL version 4
+[reproduce] Elasticsearch converged to v4 (COMPLETED) through the normal CDC path
+[reproduce] captured original v2 record: partition=1 offset=9 lsn=26327128 txId=752
+[reproduce] controlled late delivery: v2 re-published as partition=1 offset=12
+[reproduce] projection consumer committed past the re-delivered record
+
+┌───────────────┬─────────────┬─────────┐
+│ (index)       │ status      │ version │
+├───────────────┼─────────────┼─────────┤
+│ PostgreSQL    │ 'COMPLETED' │ 4       │
+│ Elasticsearch │ 'CONFIRMED' │ 2       │
+└───────────────┴─────────────┴─────────┘
+
+FAIL: STALE PROJECTION for ORD-REPRO-20261103-065337: PostgreSQL=COMPLETED/v4, Elasticsearch=CONFIRMED/v2

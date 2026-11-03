@@ -1,0 +1,27 @@
+{
+  "runId": "20261103-065337",
+  "orderId": "ORD-REPRO-20261103-065337",
+  "startedAt": "2026-11-03T06:53:37.437Z",
+  "finishedAt": "2026-11-03T06:53:39.351Z",
+  "replayedOriginal": {
+    "partition": 1,
+    "offset": "9",
+    "version": 2,
+    "lsn": "26327128"
+  },
+  "replayedCopy": {
+    "partition": 1,
+    "offset": "12"
+  },
+  "postgres": {
+    "status": "COMPLETED",
+    "version": 4
+  },
+  "elasticsearch": {
+    "status": "CONFIRMED",
+    "version": 2,
+    "is_deleted": false,
+    "last_event_id": "order:ORD-REPRO-20261103-065337:v2:UPDATE"
+  },
+  "consistent": false
+}

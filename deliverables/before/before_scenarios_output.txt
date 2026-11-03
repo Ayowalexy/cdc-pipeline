@@ -1,0 +1,22 @@
+TC-01 PASS  Normal update  PG={"status":"CONFIRMED","version":2} ES={"status":"CONFIRMED","version":2,"is_deleted":false,"_seq_no":49}
+TC-02 PASS  Rapid updates  PG={"status":"COMPLETED","version":6} ES={"status":"COMPLETED","version":6,"is_deleted":false,"_seq_no":55}
+TC-03 FAIL  Duplicate event  PG={"status":"CONFIRMED","version":2} ES={"status":"CONFIRMED","version":2,"is_deleted":false,"_seq_no":59}
+        ES _seq_no before duplicates: 57
+        controlled replay of v2 (original 0/24) as 0/25; consumer committed past it
+        controlled replay of v2 (original 0/24) as 0/26; consumer committed past it
+        ES _seq_no after duplicates: 59 (document rewritten by duplicate)
+TC-04 PASS  Consumer restart/replay  PG={"status":"PROCESSING","version":3} ES={"status":"PROCESSING","version":3,"is_deleted":false,"_seq_no":101}
+        cdc-consumer container stopped
+        while stopped: [{"partition":0,"committed":"28","end":"29","lag":1},{"partition":1,"committed":"24","end":"24","lag":0},{"partition":2,"committed":"9","end":"9","lag":0}]; ES version 1
+        after restart: lag 0 [{"partition":0,"committed":"30","end":"30","lag":0},{"partition":1,"committed":"24","end":"24","lag":0},{"partition":2,"committed":"9","end":"9","lag":0}]; ES reached v3
+        group rewound to earliest: [{"partition":0,"committed":"-2","end":"30","lag":32},{"partition":1,"committed":"-2","end":"24","lag":26},{"partition":2,"committed":"-2","end":"9","lag":11}]
+        replay re-delivered 3 events for this order; outcomes: applied, applied, applied
+        ES _seq_no before replay 62, after 101
+TC-05 FAIL  Out-of-order event  PG={"status":"PROCESSING","version":3} ES={"status":"CONFIRMED","version":2,"is_deleted":false,"_seq_no":129}
+        controlled replay of v2 (original 0/31) as 0/33; consumer committed past it
+TC-06 FAIL  Deletion  PG="row absent" ES={"status":"CONFIRMED","version":2,"is_deleted":false,"_seq_no":133}
+        after delete: tombstone v3, live search hits 0
+        controlled replay of v2 (original 1/25) as 1/28; consumer committed past it
+        live search hits after stale update: 1
+
+run 20261103-070441: 3/6 passed -> deliverables/before/scenario_results.json

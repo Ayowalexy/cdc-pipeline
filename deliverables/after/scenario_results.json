@@ -1,0 +1,168 @@
+{
+  "phase": "after",
+  "runId": "20261103-073747",
+  "startedAt": "2026-11-03T07:37:47.883Z",
+  "finishedAt": "2026-11-03T07:38:43.538Z",
+  "results": [
+    {
+      "id": "TC-01",
+      "scenario": "Normal update",
+      "orderId": "ORD-TC01-20261103-073747",
+      "preconditions": "Stack healthy; new order created (v1 PENDING) and indexed",
+      "steps": [
+        "POST /orders {id:ORD-TC01-20261103-073747}",
+        "wait ES v1",
+        "PATCH /orders/ORD-TC01-20261103-073747/status CONFIRMED",
+        "bounded poll ES for v2 (60s)"
+      ],
+      "expected": "Elasticsearch converges to CONFIRMED / v2",
+      "postgres": {
+        "status": "CONFIRMED",
+        "version": 2
+      },
+      "elasticsearch": {
+        "status": "CONFIRMED",
+        "version": 2,
+        "is_deleted": false,
+        "_seq_no": 99
+      },
+      "observations": [],
+      "pass": true
+    },
+    {
+      "id": "TC-02",
+      "scenario": "Rapid updates",
+      "orderId": "ORD-TC02-20261103-073747",
+      "preconditions": "Stack healthy; new order",
+      "steps": [
+        "POST /orders {id:ORD-TC02-20261103-073747}",
+        "PATCH status CONFIRMED -> PROCESSING -> CONFIRMED -> PROCESSING -> COMPLETED back-to-back",
+        "bounded poll ES for PostgreSQL version"
+      ],
+      "expected": "Final indexed version/status matches PostgreSQL (COMPLETED / v6)",
+      "postgres": {
+        "status": "COMPLETED",
+        "version": 6
+      },
+      "elasticsearch": {
+        "status": "COMPLETED",
+        "version": 6,
+        "is_deleted": false,
+        "_seq_no": 105
+      },
+      "observations": [],
+      "pass": true
+    },
+    {
+      "id": "TC-03",
+      "scenario": "Duplicate event",
+      "orderId": "ORD-TC03-20261103-073747",
+      "preconditions": "Order at v2 CONFIRMED, indexed",
+      "steps": [
+        "create ORD-TC03-20261103-073747, PATCH CONFIRMED, wait ES v2",
+        "npm run replay:event -- --order-id <id> --version 2 (twice)"
+      ],
+      "expected": "No regression; duplicate safely ignored/idempotent (ES stays CONFIRMED / v2, not rewritten)",
+      "postgres": {
+        "status": "CONFIRMED",
+        "version": 2
+      },
+      "elasticsearch": {
+        "status": "CONFIRMED",
+        "version": 2,
+        "is_deleted": false,
+        "_seq_no": 107
+      },
+      "observations": [
+        "ES _seq_no before duplicates: 107",
+        "controlled replay of v2 (original 1/42) as 1/43; consumer committed past it",
+        "controlled replay of v2 (original 1/42) as 1/44; consumer committed past it",
+        "ES _seq_no after duplicates: 107 (document not rewritten)"
+      ],
+      "pass": true
+    },
+    {
+      "id": "TC-04",
+      "scenario": "Consumer restart/replay",
+      "orderId": "ORD-TC04-20261103-073747",
+      "preconditions": "Order indexed at v1; consumer group order-projection has committed offsets",
+      "steps": [
+        "docker compose stop cdc-consumer",
+        "PATCH CONFIRMED, PATCH PROCESSING (events pending in Kafka, lag > 0)",
+        "docker compose start cdc-consumer; wait lag 0 and ES v3",
+        "docker compose stop cdc-consumer; reset group order-projection to earliest; start; wait lag 0"
+      ],
+      "expected": "Consumer resumes from committed offset; after full replay final state still PROCESSING / v3",
+      "postgres": {
+        "status": "PROCESSING",
+        "version": 3
+      },
+      "elasticsearch": {
+        "status": "PROCESSING",
+        "version": 3,
+        "is_deleted": false,
+        "_seq_no": 110
+      },
+      "observations": [
+        "cdc-consumer container stopped",
+        "while stopped: [{\"partition\":0,\"committed\":\"60\",\"end\":\"62\",\"lag\":2},{\"partition\":1,\"committed\":\"45\",\"end\":\"45\",\"lag\":0},{\"partition\":2,\"committed\":\"25\",\"end\":\"25\",\"lag\":0}]; ES version 1",
+        "after restart: lag 0 [{\"partition\":0,\"committed\":\"62\",\"end\":\"62\",\"lag\":0},{\"partition\":1,\"committed\":\"45\",\"end\":\"45\",\"lag\":0},{\"partition\":2,\"committed\":\"25\",\"end\":\"25\",\"lag\":0}]; ES reached v3",
+        "group rewound to earliest: [{\"partition\":0,\"committed\":\"-2\",\"end\":\"62\",\"lag\":62},{\"partition\":1,\"committed\":\"-2\",\"end\":\"45\",\"lag\":45},{\"partition\":2,\"committed\":\"-2\",\"end\":\"25\",\"lag\":25}]",
+        "replay re-delivered 3 events for this order; outcomes: ignored_stale, ignored_stale, duplicate",
+        "ES _seq_no before replay 110, after 110"
+      ],
+      "pass": true
+    },
+    {
+      "id": "TC-05",
+      "scenario": "Out-of-order event",
+      "orderId": "ORD-TC05-20261103-073747",
+      "preconditions": "Order at v3 PROCESSING, indexed",
+      "steps": [
+        "create ORD-TC05-20261103-073747, PATCH CONFIRMED, PATCH PROCESSING, wait ES v3",
+        "replay v2 (CONFIRMED) after v3"
+      ],
+      "expected": "Lower version cannot overwrite higher version (ES stays PROCESSING / v3)",
+      "postgres": {
+        "status": "PROCESSING",
+        "version": 3
+      },
+      "elasticsearch": {
+        "status": "PROCESSING",
+        "version": 3,
+        "is_deleted": false,
+        "_seq_no": 113
+      },
+      "observations": [
+        "controlled replay of v2 (original 1/46) as 1/48; consumer committed past it"
+      ],
+      "pass": true
+    },
+    {
+      "id": "TC-06",
+      "scenario": "Deletion",
+      "orderId": "ORD-TC06-20261103-073747",
+      "preconditions": "Order at v2 CONFIRMED, indexed",
+      "steps": [
+        "create ORD-TC06-20261103-073747, PATCH CONFIRMED, wait ES v2",
+        "DELETE /orders/ORD-TC06-20261103-073747; wait tombstone",
+        "replay v2 (stale update)",
+        "live search (is_deleted:false)"
+      ],
+      "expected": "Order remains deleted (tombstone v3) and not searchable",
+      "postgres": "row absent",
+      "elasticsearch": {
+        "status": "CONFIRMED",
+        "version": 3,
+        "is_deleted": true,
+        "_seq_no": 116
+      },
+      "observations": [
+        "after delete: tombstone v3, live search hits 0",
+        "controlled replay of v2 (original 1/50) as 1/53; consumer committed past it",
+        "live search hits after stale update: 0"
+      ],
+      "pass": true
+    }
+  ]
+}

@@ -48,7 +48,8 @@ services:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
       # A TCP probe, not kafka-broker-api-versions.sh: that starts a JVM per probe, which piles up on a loaded host.
-      test: ['CMD-SHELL', "bash -c '</dev/tcp/localhost/9092' && grep -q 'Kafka Server started' /opt/kafka/logs/server.log"]
+      # (Not a server.log grep either: the broker rotates server.log hourly.)
+      test: ['CMD-SHELL', "bash -c '</dev/tcp/localhost/9092'"]
       interval: 10s
       timeout: 10s
       retries: 20
@@ -71,6 +72,9 @@ services:
         }
         create ${KAFKA_ORDERS_TOPIC:-cdc.public.orders} 3
         create ${KAFKA_DLQ_TOPIC:-cdc.public.orders.dlq} 1
+        # Keep the full change history locally so the projection can be rebuilt from the log
+        # (scripts/rebuild-projection.sh). Production would rebuild from a Debezium snapshot instead.
+        /opt/kafka/bin/kafka-configs.sh --bootstrap-server kafka:9092 --alter --entity-type topics --entity-name ${KAFKA_ORDERS_TOPIC:-cdc.public.orders} --add-config retention.ms=-1
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --describe --topic ${KAFKA_ORDERS_TOPIC:-cdc.public.orders}
     restart: 'no'
 
@@ -123,7 +127,8 @@ services:
     volumes:
       - es-data:/usr/share/elasticsearch/data
     healthcheck:
-      test: ['CMD-SHELL', 'curl -fs "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s" > /dev/null']
+      test:
+        ['CMD-SHELL', 'curl -fs "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s" > /dev/null']
       interval: 10s
       timeout: 10s
       retries: 30

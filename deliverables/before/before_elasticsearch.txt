@@ -1,0 +1,22 @@
+# Elasticsearch projection — captured 2026-11-03T07:09:31Z, pre-fix, reproduction order ORD-REPRO-20261103-065337
+# GET orders/_doc/ORD-REPRO-20261103-065337
+{
+  "_index" : "orders",
+  "_id" : "ORD-REPRO-20261103-065337",
+  "_version" : 10,
+  "_seq_no" : 114,
+  "_primary_term" : 2,
+  "found" : true,
+  "_source" : {
+    "order_id" : "ORD-REPRO-20261103-065337",
+    "status" : "CONFIRMED",
+    "total_amount" : 149.9,
+    "currency" : "EUR",
+    "version" : 2,
+    "is_deleted" : false,
+    "created_at" : "2026-11-03T06:53:37.546534Z",
+    "updated_at" : "2026-11-03T06:53:37.579453Z",
+    "deleted_at" : null,
+    "last_event_id" : "order:ORD-REPRO-20261103-065337:v2:UPDATE"
+  }
+}

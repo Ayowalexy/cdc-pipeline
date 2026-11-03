@@ -1,10 +1,7 @@
-node_modules
-dist
-deliverables
-docs
-test
-scripts
+node_modules/
+dist/
+coverage/
 .env
-.git
-*.docx
-*.md
+*.log
+.DS_Store
+deliverables/**/*.debug.png

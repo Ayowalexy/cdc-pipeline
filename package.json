@@ -20,6 +20,8 @@
     "reproduce:stale": "tsx scripts/reproduce-stale-update.ts",
     "replay:event": "tsx scripts/replay-event.ts",
     "scenarios": "tsx scripts/run-scenarios.ts",
+    "verify:convergence": "tsx scripts/verify-convergence.ts",
+    "rebuild:projection": "bash scripts/rebuild-projection.sh",
     "reset:local": "bash scripts/reset-local-env.sh",
     "test": "jest --selectProjects unit",
     "test:integration": "jest --selectProjects integration --runInBand",

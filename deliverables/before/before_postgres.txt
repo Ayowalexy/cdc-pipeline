@@ -1,0 +1,7 @@
+# PostgreSQL (source of truth) — captured 2026-11-03T07:09:28Z, pre-fix, reproduction order ORD-REPRO-20261103-065337
+# docker compose exec postgres psql -U orders -d orders -c "SELECT ... WHERE id = 'ORD-REPRO-20261103-065337'"
+            id             |  status   | version | total_amount | currency |          created_at           |          updated_at           
+---------------------------+-----------+---------+--------------+----------+-------------------------------+-------------------------------
+ ORD-REPRO-20261103-065337 | COMPLETED |       4 |       149.90 | EUR      | 2026-11-03 06:53:37.546534+00 | 2026-11-03 06:53:37.605302+00
+(1 row)
+
