@@ -1,0 +1,205 @@
+# Local engineering exercise. Synthetic data only; security deliberately disabled.
+# Values fall back to the defaults documented in .env.example when .env is absent.
+name: cdc-order-sync
+
+x-pg-env: &pg-env
+  POSTGRES_USER: ${POSTGRES_USER:-orders}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-orders_local_only}
+  POSTGRES_DB: ${POSTGRES_DB:-orders}
+
+services:
+  postgres:
+    image: postgres:16.4
+    command: ['postgres', '-c', 'wal_level=logical', '-c', 'max_replication_slots=4', '-c', 'max_wal_senders=4']
+    environment: *pg-env
+    ports: ['${POSTGRES_HOST_PORT:-55432}:5432']
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  kafka:
+    image: apache/kafka:3.8.0
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk # any 22-char base64 UUID
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,HOST://:${KAFKA_HOST_PORT:-29092}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,HOST://localhost:${KAFKA_HOST_PORT:-29092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Topics are created explicitly by kafka-init so a consumer can never auto-create a
+      # 1-partition orders topic before Debezium/kafka-init do.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+    ports: ['${KAFKA_HOST_PORT:-29092}:${KAFKA_HOST_PORT:-29092}']
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      # A TCP probe, not kafka-broker-api-versions.sh: that starts a JVM per probe, which piles up on a loaded host.
+      test: ['CMD-SHELL', "bash -c '</dev/tcp/localhost/9092' && grep -q 'Kafka Server started' /opt/kafka/logs/server.log"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  kafka-init:
+    image: apache/kafka:3.8.0
+    depends_on:
+      kafka: { condition: service_healthy }
+    entrypoint: ['/bin/bash', '-c']
+    command:
+      - |
+        set -e
+        # Retries: admin calls can time out while the broker is still settling on a loaded host.
+        create() {
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic "$$1" --partitions "$$2" --replication-factor 1 && return 0
+            sleep 5
+          done
+          return 1
+        }
+        create ${KAFKA_ORDERS_TOPIC:-cdc.public.orders} 3
+        create ${KAFKA_DLQ_TOPIC:-cdc.public.orders.dlq} 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --describe --topic ${KAFKA_ORDERS_TOPIC:-cdc.public.orders}
+    restart: 'no'
+
+  connect:
+    image: quay.io/debezium/connect:2.7.3.Final
+    depends_on:
+      kafka: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    environment:
+      <<: *pg-env
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: debezium-connect
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_statuses
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      # Lets the connector config reference ${env:POSTGRES_PASSWORD} instead of embedding it.
+      CONNECT_CONFIG_PROVIDERS: env
+      CONNECT_CONFIG_PROVIDERS_ENV_CLASS: org.apache.kafka.common.config.provider.EnvVarConfigProvider
+      HEAP_OPTS: -Xms256m -Xmx512m
+    ports: ['${CONNECT_HOST_PORT:-8083}:8083']
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fs http://localhost:8083/connectors > /dev/null']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  connect-init:
+    image: quay.io/debezium/connect:2.7.3.Final
+    depends_on:
+      connect: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+    environment:
+      CONNECT_URL: http://connect:8083
+    entrypoint: ['/bin/bash', '/workspace/scripts/register-connector.sh']
+    volumes:
+      - ./scripts/register-connector.sh:/workspace/scripts/register-connector.sh:ro
+      - ./infrastructure/debezium:/workspace/infrastructure/debezium:ro
+    restart: 'no'
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'false'
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports: ['${ES_HOST_PORT:-9200}:9200']
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fs "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s" > /dev/null']
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.3
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+    ports: ['${KIBANA_HOST_PORT:-5601}:5601']
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fs http://localhost:5601/api/status | grep -q available']
+      interval: 10s
+      timeout: 10s
+      retries: 40
+
+  pgadmin:
+    image: dpage/pgadmin4:8.12
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-dev@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-pgadmin_local_only}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports: ['${PGADMIN_HOST_PORT:-5050}:80']
+    volumes:
+      - ./infrastructure/pgadmin/servers.json:/pgadmin4/servers.json:ro
+
+  order-service:
+    build: .
+    init: true # tini as PID 1: forwards SIGTERM so Nest shutdown hooks run
+    stop_grace_period: 20s # time to leave the Kafka group / finish the in-flight event before SIGKILL
+    image: cdc-order-sync-app:local
+    command: ['node', 'dist/apps/order-service/src/main.js']
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      <<: *pg-env
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      ORDER_SERVICE_PORT: 3100
+    ports: ['${ORDER_SERVICE_HOST_PORT:-3100}:3100']
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3100/health > /dev/null']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  cdc-consumer:
+    build: .
+    init: true # tini as PID 1: forwards SIGTERM so Nest shutdown hooks run
+    stop_grace_period: 20s # time to leave the Kafka group / finish the in-flight event before SIGKILL
+    image: cdc-order-sync-app:local
+    command: ['node', 'dist/apps/cdc-consumer/src/main.js']
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+      connect-init: { condition: service_completed_successfully }
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ES_ORDERS_INDEX: ${ES_ORDERS_INDEX:-orders}
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_ORDERS_TOPIC: ${KAFKA_ORDERS_TOPIC:-cdc.public.orders}
+      KAFKA_DLQ_TOPIC: ${KAFKA_DLQ_TOPIC:-cdc.public.orders.dlq}
+      KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-order-projection}
+      CDC_CONSUMER_PORT: 3101
+    ports: ['${CDC_CONSUMER_HOST_PORT:-3101}:3101']
+    restart: on-failure
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3101/health > /dev/null']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  pg-data:
+  kafka-data:
+  es-data:

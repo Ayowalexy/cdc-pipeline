@@ -1,0 +1,10 @@
+node_modules
+dist
+deliverables
+docs
+test
+scripts
+.env
+.git
+*.docx
+*.md
